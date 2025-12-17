@@ -15,7 +15,7 @@ from telegram.ext import (
 
 # ================= НАСТРОЙКИ =================
 TOKEN = "8588194727:AAH2dAzcWbAJwiVsyvfi-4xwtbVKUjDVqps"
-ADMIN_ID = 8518489868  # твой Telegram ID
+ADMIN_ID = 8518489868
 
 CHANNELS = [
     "@channel1",
@@ -58,25 +58,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
     if not await check_sub(user_id, context):
-        buttons = []
-        for ch in CHANNELS:
-            buttons.append(
-                [InlineKeyboardButton(f"➕ {ch}", url=f"https://t.me/{ch.replace('@','')}")]
-            )
-
-        buttons.append(
-            [InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")]
-        )
+        buttons = [
+            [InlineKeyboardButton(f"➕ {ch}", url=f"https://t.me/{ch.replace('@','')}")]
+            for ch in CHANNELS
+        ]
+        buttons.append([InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")])
 
         await update.message.reply_text(
-            "❗ Kino ko‘rish uchun quyidagi kanallarga obuna bo‘ling:",
+            "❗ Kino ko‘rish uchun kanallarga obuna bo‘ling:",
             reply_markup=InlineKeyboardMarkup(buttons)
         )
         return
 
-    keyboard = [
-        [InlineKeyboardButton("🎬 Kino olish", callback_data="get_movie")]
-    ]
+    keyboard = [[InlineKeyboardButton("🎬 Kino olish", callback_data="get_movie")]]
 
     if is_admin(user_id):
         keyboard.append(
@@ -84,8 +78,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     await update.message.reply_text(
-        "👋 Xush kelibsiz!\n\n"
-        "🎬 Kino olish uchun tugmani bosing.",
+        "👋 Xush kelibsiz!\n🎬 Kino olish uchun tugmani bosing.",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -97,9 +90,9 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "check_sub":
         if await check_sub(user_id, context):
-            await query.message.edit_text("✅ Obuna tasdiqlandi! /start buyrug‘ini bosing")
+            await query.message.edit_text("✅ Obuna tasdiqlandi! /start bosing")
         else:
-            await query.message.edit_text("❌ Hali ham barcha kanallarga obuna emassiz")
+            await query.message.edit_text("❌ Hali ham obuna yo‘q")
 
     elif query.data == "get_movie":
         await query.message.reply_text("🎥 Kino kodini yuboring:")
@@ -107,9 +100,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "add_movie" and is_admin(user_id):
         context.user_data["add_movie"] = True
         await query.message.reply_text(
-            "📥 Kino qo‘shish:\n"
-            "Format:\n"
-            "KOD|NOMI|HAVOLA"
+            "📥 Format:\nKOD|NOMI|HAVOLA"
         )
 
 # ================= MESSAGE =================
@@ -119,21 +110,19 @@ async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     movies = load_movies()
 
-    # ADMIN: ADD MOVIE
     if context.user_data.get("add_movie") and is_admin(user_id):
         try:
             code, name, link = text.split("|", 2)
             movies[code] = {"name": name, "link": link}
             save_movies(movies)
             context.user_data["add_movie"] = False
-            await update.message.reply_text("✅ Kino muvaffaqiyatli qo‘shildi")
+            await update.message.reply_text("✅ Kino qo‘shildi")
         except:
-            await update.message.reply_text("❌ Format xato\nKOD|NOMI|HAVOLA")
+            await update.message.reply_text("❌ Format xato")
         return
 
-    # USER: GET MOVIE
     if not await check_sub(user_id, context):
-        await update.message.reply_text("❗ Avval kanallarga obuna bo‘ling /start")
+        await update.message.reply_text("❗ Avval obuna bo‘ling /start")
         return
 
     if text in movies:
@@ -142,19 +131,17 @@ async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🎬 {movie['name']}\n\n🔗 {movie['link']}"
         )
     else:
-        await update.message.reply_text("❌ Bunday kino topilmadi")
+        await update.message.reply_text("❌ Kino topilmadi")
 
 # ================= MAIN =================
-async def main():
+def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(callbacks))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, messages))
 
-    await app.run_polling()
+    app.run_polling()
 
-
-if __name__== "__main__":
+if _name_ == "_main_":
     main()
-
