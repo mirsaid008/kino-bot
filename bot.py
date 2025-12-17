@@ -13,8 +13,8 @@ from telegram.ext import (
     filters
 )
 
-# ================== НАСТРОЙКИ ==================
-TOKEN = "8588194727:AAEzUO6WvRiWYvOI8StQPjau5xeuWrx-Uh4"
+# ================= НАСТРОЙКИ =================
+TOKEN = "8588194727:AAH2dAzcWbAJwiVsyvfi-4xwtbVKUjDVqps"
 ADMIN_ID = 8518489868  # твой Telegram ID
 
 CHANNELS = [
@@ -25,7 +25,11 @@ CHANNELS = [
 
 MOVIES_FILE = "movies.json"
 
-# ================== ФАЙЛЫ ==================
+# ================= ВСПОМОГАТЕЛЬНЫЕ =================
+def is_admin(user_id: int) -> bool:
+    return user_id == ADMIN_ID
+
+
 def load_movies():
     try:
         with open(MOVIES_FILE, "r", encoding="utf-8") as f:
@@ -33,131 +37,124 @@ def load_movies():
     except:
         return {}
 
+
 def save_movies(data):
     with open(MOVIES_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-movies = load_movies()
 
-# ================== ПРОВЕРКИ ==================
-def is_admin(user_id: int) -> bool:
-    return user_id == ADMIN_ID
-
-async def check_sub(user_id: int, bot) -> bool:
+async def check_sub(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
     for ch in CHANNELS:
         try:
-            member = await bot.get_chat_member(ch, user_id)
-            if member.status not in ["member", "administrator", "creator"]:
+            member = await context.bot.get_chat_member(ch, user_id)
+            if member.status not in ("member", "administrator", "creator"):
                 return False
         except:
             return False
     return True
 
-# ================== /start ==================
+# ================= /start =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if not await check_sub(user_id, context):
+        buttons = []
+        for ch in CHANNELS:
+            buttons.append(
+                [InlineKeyboardButton(f"➕ {ch}", url=f"https://t.me/{ch.replace('@','')}")]
+            )
+
+        buttons.append(
+            [InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")]
+        )
+
+        await update.message.reply_text(
+            "❗ Kino ko‘rish uchun quyidagi kanallarga obuna bo‘ling:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+        return
+
     keyboard = [
         [InlineKeyboardButton("🎬 Kino olish", callback_data="get_movie")]
     ]
 
-    if is_admin(update.effective_user.id):
+    if is_admin(user_id):
         keyboard.append(
             [InlineKeyboardButton("➕ Kino qo‘shish (ADMIN)", callback_data="add_movie")]
         )
 
     await update.message.reply_text(
         "👋 Xush kelibsiz!\n\n"
-        "🎞 Kino kodini olish uchun tugmani bosing.",
+        "🎬 Kino olish uchun tugmani bosing.",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ================== КНОПКИ ==================
-async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ================= CALLBACK =================
+async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    user_id = query.from_user.id
     await query.answer()
 
-    if query.data == "get_movie":
-        await query.message.reply_text("🎟 Kino kodini yuboring:")
-        context.user_data["mode"] = "get"
+    if query.data == "check_sub":
+        if await check_sub(user_id, context):
+            await query.message.edit_text("✅ Obuna tasdiqlandi! /start buyrug‘ini bosing")
+        else:
+            await query.message.edit_text("❌ Hali ham barcha kanallarga obuna emassiz")
 
-    elif query.data == "add_movie":
-        if not is_admin(query.from_user.id):
-            await query.message.reply_text("❌ Siz admin emassiz")
-            return
-        await query.message.reply_text("📌 Kino kodini yuboring:")
-        context.user_data["mode"] = "add_code"
+    elif query.data == "get_movie":
+        await query.message.reply_text("🎥 Kino kodini yuboring:")
 
-# ================== СООБЩЕНИЯ ==================
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-    mode = context.user_data.get("mode")
-
-    # --- ПОЛУЧЕНИЕ КИНО ---
-    if mode == "get":
-        if not await check_sub(update.effective_user.id, context.bot):
-            buttons = [
-                [InlineKeyboardButton("📢 Kanal 1", url=f"https://t.me/{CHANNELS[0][1:]}")],
-                [InlineKeyboardButton("📢 Kanal 2", url=f"https://t.me/{CHANNELS[1][1:]}")]
-            ]
-            await update.message.reply_text(
-                "❗ Kino ko‘rish uchun kanallarga obuna bo‘ling:",
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
-            return
-
-        movie = movies.get(text)
-        if not movie:
-            await update.message.reply_text("❌ Bunday kod topilmadi")
-            return
-
-        await update.message.reply_video(
-            video=movie["file_id"],
-            caption=movie["caption"]
+    elif query.data == "add_movie" and is_admin(user_id):
+        context.user_data["add_movie"] = True
+        await query.message.reply_text(
+            "📥 Kino qo‘shish:\n"
+            "Format:\n"
+            "KOD|NOMI|HAVOLA"
         )
 
-    # --- ДОБАВЛЕНИЕ КИНО ---
-    elif mode == "add_code":
-        context.user_data["new_code"] = text
-        context.user_data["mode"] = "add_video"
-        await update.message.reply_text("🎥 Endi videoni yuboring")
+# ================= MESSAGE =================
+async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text.strip()
 
-    elif mode == "add_video":
-        await update.message.reply_text("❌ Video yuboring")
+    movies = load_movies()
 
-# ================== ВИДЕО ОТ АДМИНА ==================
-async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get("mode") != "add_video":
+    # ADMIN: ADD MOVIE
+    if context.user_data.get("add_movie") and is_admin(user_id):
+        try:
+            code, name, link = text.split("|", 2)
+            movies[code] = {"name": name, "link": link}
+            save_movies(movies)
+            context.user_data["add_movie"] = False
+            await update.message.reply_text("✅ Kino muvaffaqiyatli qo‘shildi")
+        except:
+            await update.message.reply_text("❌ Format xato\nKOD|NOMI|HAVOLA")
         return
 
-    code = context.user_data["new_code"]
-    video = update.message.video
+    # USER: GET MOVIE
+    if not await check_sub(user_id, context):
+        await update.message.reply_text("❗ Avval kanallarga obuna bo‘ling /start")
+        return
 
-    movies[code] = {
-        "file_id": video.file_id,
-        "caption": "🎬 Kino shu yerda\n👉 @your_bot"
-    }
+    if text in movies:
+        movie = movies[text]
+        await update.message.reply_text(
+            f"🎬 {movie['name']}\n\n🔗 {movie['link']}"
+        )
+    else:
+        await update.message.reply_text("❌ Bunday kino topilmadi")
 
-    save_movies(movies)
-
-    context.user_data.clear()
-    await update.message.reply_text("✅ Kino muvaffaqiyatli qo‘shildi!")
-
-# ================== ЗАПУСК ==================
-def main():
-    app = (
-        ApplicationBuilder()
-        .token(TOKEN)
-        .connect_timeout(60)
-        .read_timeout(60)
-        .build()
-    )
+# ================= MAIN =================
+async def main():
+    app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(buttons))
-    app.add_handler(MessageHandler(filters.VIDEO, handle_video))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CallbackQueryHandler(callbacks))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, messages))
 
-    print("✅ Bot ishga tushdi")
-    app.run_polling()
+    await app.run_polling()
 
-if __name__ == "__main__":
-    main()
+
+if __name__== "__main__":
+    import asyncio
+    asyncio.run(main())
