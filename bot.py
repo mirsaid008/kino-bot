@@ -68,12 +68,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🎬 Kino olish", callback_data="get_movie")]]
 
     if is_admin(user_id):
-        keyboard.append(
-            [InlineKeyboardButton("⚙️ Kanallar (ADMIN)", callback_data="channels")]
-        )
-        keyboard.append(
-            [InlineKeyboardButton("➕ Kino qo‘shish", callback_data="add_movie")]
-        )
+        keyboard.append([InlineKeyboardButton("⚙️ Kanallar (ADMIN)", callback_data="channels")])
+        keyboard.append([InlineKeyboardButton("➕ Kino qo‘shish", callback_data="add_movie")])
 
     await update.message.reply_text(
         "👋 Xush kelibsiz!",
@@ -105,8 +101,11 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif query.data == "add_movie" and is_admin(user_id):
+        context.user_data.clear()
         context.user_data["add_movie"] = True
+        context.user_data["step"] = "code"
         await query.message.reply_text("📥 Kino qo‘shish boshlandi.\nKino kodini kiriting:")
+
 
 # ================= ADMIN CHANNEL CMDS =================
 async def add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -159,12 +158,12 @@ async def channels_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ================= MOVIES =================
 async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    text = update.message.text.strip()
     movies = load_json(MOVIES_FILE, {})
 
-    # ===== ADD MOVIE (ADMIN STEP BY STEP) =====
+    # ===== ADD MOVIE (ADMIN) =====
     if context.user_data.get("add_movie") and is_admin(user_id):
-        step = context.user_data.get("step", "code")
+        step = context.user_data.get("step")
+        text = update.message.text if update.message.text else ""
 
         if step == "code":
             context.user_data["code"] = text
@@ -177,26 +176,34 @@ async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["step"] = "rating"
             await update.message.reply_text("⭐ Reyting kiriting (masalan 8.5):")
             return
+
         if step == "rating":
-    context.user_data["rating"] = text
-    context.user_data["step"] = "trailer"
-    await update.message.reply_text("▶️ Treyler videosini yuboring (2–3 daqiqa):")
-    return
+            context.user_data["rating"] = text
+            context.user_data["step"] = "trailer"
+            await update.message.reply_text("▶️ Treyler videosini yuboring (2–3 daqiqa):")
+            return
 
-if step == "trailer":
-    if not update.message.video:
-        await update.message.reply_text(
-            "❌ Iltimos, 2–3 daqiqalik video yuboring"
-        )
-        return
+        if step == "trailer":
+            if not update.message.video:
+                await update.message.reply_text("❌ Iltimos, video yuboring")
+                return
 
-    context.user_data["trailer"] = update.message.video.file_id
-    context.user_data["step"] = "link"
-    await update.message.reply_text("🔗 To‘liq film linkini yuboring:")
-    return
+            context.user_data["trailer"] = update.message.video.file_id
+            context.user_data["step"] = "link"
+            await update.message.reply_text("🔗 To‘liq film linkini yuboring:")
+            return
+
+        if step == "link":
+            code = context.user_data["code"]
+            movies[code] = {
+                "name": context.user_data["name"],
+                "rating": context.user_data["rating"],
+                "trailer": context.user_data["trailer"],
+                "link": text
+            }
             save_json(MOVIES_FILE, movies)
             context.user_data.clear()
-            await update.message.reply_text("✅ Kino qo‘shildi")
+            await update.message.reply_text("✅ Kino muvaffaqiyatli qo‘shildi")
             return
 
     # ===== CHECK SUB =====
@@ -205,22 +212,21 @@ if step == "trailer":
         return
 
     # ===== GET MOVIE =====
-    if text in movies:
-    m = movies[text]
+    if update.message.text in movies:
+        m = movies[update.message.text]
 
-    await update.message.reply_video(
-        video=m["trailer"],
-        caption=(
-            f"🎬 <b>{m['name']}</b>\n"
-            f"⭐ Reyting: {m['rating']}"
-        ),
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("🎥 To‘liq ko‘rish", url=m["link"])]
-        ]),
-        parse_mode="HTML"
-    )
-else:
-    await update.message.reply_text("❌ Kino topilmadi")
+        await update.message.reply_video(
+            video=m["trailer"],
+            caption=f"🎬 <b>{m['name']}</b>\n⭐ Reyting: {m['rating']}",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🎥 To‘liq ko‘rish", url=m["link"])]
+            ]),
+            parse_mode="HTML"
+        )
+    else:
+        await update.message.reply_text("❌ Kino topilmadi")
+
+
 # ================= MAIN =================
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
@@ -230,14 +236,10 @@ def main():
     app.add_handler(CommandHandler("addchannel", add_channel))
     app.add_handler(CommandHandler("delchannel", del_channel))
     app.add_handler(CommandHandler("channelslist", channels_list))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, messages))
+    app.add_handler(MessageHandler((filters.TEXT | filters.VIDEO) & ~filters.COMMAND, messages))
 
     app.run_polling()
 
 
 if __name__ == "__main__":
     main()
-
-
-
-
