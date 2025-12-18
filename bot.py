@@ -106,8 +106,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "add_movie" and is_admin(user_id):
         context.user_data["add_movie"] = True
-        await query.message.reply_text("📥 Format:\nKOD|NOMI|HAVOLA")
-
+        await query.message.reply_text("📥 Kino qo‘shish boshlandi.\nKino kodini kiriting:")
 
 # ================= ADMIN CHANNEL CMDS =================
 async def add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -248,4 +247,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
