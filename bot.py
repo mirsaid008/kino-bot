@@ -183,11 +183,14 @@ async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["step"] = "trailer"
             await update.message.reply_text("▶️ Treyler link yuboring:")
             return
+            if step == "trailer":
+            if not update.message.video:
+                await update.message.reply_text("❌ Iltimos, 2–3 daqiqalik video yuboring")
+                return
 
-        if step == "trailer":
-            context.user_data["trailer"] = text
+            context.user_data["trailer"] = update.message.video.file_id
             context.user_data["step"] = "link"
-            await update.message.reply_text("🔗 To‘liq film linkini yuboring:")
+           await update.message.reply_text("▶️ Treyler videosini yuboring (2–3 daqiqa):")
             return
 
         if step == "link":
@@ -212,25 +215,21 @@ async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ===== GET MOVIE =====
     if text in movies:
-        m = movies[text]
+    m = movies[text]
 
-        caption = (
+    await update.message.reply_video(
+        video=m["trailer"],
+        caption=(
             f"🎬 <b>{m['name']}</b>\n"
-            f"⭐ Reyting: {m['rating']}\n\n"
-            f"▶️ Treyler:\n{m['trailer']}"
-        )
-
-        keyboard = InlineKeyboardMarkup([
+            f"⭐ Reyting: {m['rating']}"
+        ),
+        reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("🎥 To‘liq ko‘rish", url=m["link"])]
-        ])
-
-        await update.message.reply_text(
-            caption,
-            reply_markup=keyboard,
-            parse_mode="HTML"
-        )
-    else:
-        await update.message.reply_text("❌ Kino topilmadi")
+        ]),
+        parse_mode="HTML"
+    )
+else:
+    await update.message.reply_text("❌ Kino topilmadi")
 # ================= MAIN =================
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
@@ -247,5 +246,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
