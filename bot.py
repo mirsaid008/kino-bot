@@ -159,31 +159,79 @@ async def channels_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= MOVIES =================
 async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     text = update.message.text.strip()
     movies = load_json(MOVIES_FILE, {})
 
-    if context.user_data.get("add_movie"):
-        try:
-            code, name, link = text.split("|", 2)
-            movies[code] = {"name": name, "link": link}
-            save_json(MOVIES_FILE, movies)
-            context.user_data["add_movie"] = False
-            await update.message.reply_text("✅ Kino qo‘shildi")
-        except:
-            await update.message.reply_text("❌ Format xato")
-        return
+    # ===== ADD MOVIE (ADMIN STEP BY STEP) =====
+    if context.user_data.get("add_movie") and is_admin(user_id):
+        step = context.user_data.get("step", "code")
 
-    if not await check_sub(update.effective_user.id, context):
+        if step == "code":
+            context.user_data["code"] = text
+            context.user_data["step"] = "name"
+            await update.message.reply_text("🎬 Kino nomini kiriting:")
+            return
+
+        if step == "name":
+            context.user_data["name"] = text
+            context.user_data["step"] = "rating"
+            await update.message.reply_text("⭐ Reyting kiriting (masalan 8.5):")
+            return
+
+        if step == "rating":
+            context.user_data["rating"] = text
+            context.user_data["step"] = "trailer"
+            await update.message.reply_text("▶️ Treyler link yuboring:")
+            return
+
+        if step == "trailer":
+            context.user_data["trailer"] = text
+            context.user_data["step"] = "link"
+            await update.message.reply_text("🔗 To‘liq film linkini yuboring:")
+            return
+
+        if step == "link":
+            code = context.user_data["code"]
+
+            movies[code] = {
+                "name": context.user_data["name"],
+                "rating": context.user_data["rating"],
+                "trailer": context.user_data["trailer"],
+                "link": text
+            }
+
+            save_json(MOVIES_FILE, movies)
+            context.user_data.clear()
+            await update.message.reply_text("✅ Kino qo‘shildi")
+            return
+
+    # ===== CHECK SUB =====
+    if not await check_sub(user_id, context):
         await update.message.reply_text("❗ Avval obuna bo‘ling /start")
         return
 
+    # ===== GET MOVIE =====
     if text in movies:
         m = movies[text]
-        await update.message.reply_text(f"🎬 {m['name']}\n🔗 {m['link']}")
+
+        caption = (
+            f"🎬 <b>{m['name']}</b>\n"
+            f"⭐ Reyting: {m['rating']}\n\n"
+            f"▶️ Treyler:\n{m['trailer']}"
+        )
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🎥 To‘liq ko‘rish", url=m["link"])]
+        ])
+
+        await update.message.reply_text(
+            caption,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
     else:
         await update.message.reply_text("❌ Kino topilmadi")
-
-
 # ================= MAIN =================
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
@@ -200,3 +248,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
