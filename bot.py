@@ -177,32 +177,23 @@ async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["step"] = "rating"
             await update.message.reply_text("⭐ Reyting kiriting (masalan 8.5):")
             return
-
         if step == "rating":
-            context.user_data["rating"] = text
-            context.user_data["step"] = "trailer"
-            await update.message.reply_text("▶️ Treyler link yuboring:")
-            return
-            if step == "trailer":
-            if not update.message.video:
-                await update.message.reply_text("❌ Iltimos, 2–3 daqiqalik video yuboring")
-                return
+    context.user_data["rating"] = text
+    context.user_data["step"] = "trailer"
+    await update.message.reply_text("▶️ Treyler videosini yuboring (2–3 daqiqa):")
+    return
 
-            context.user_data["trailer"] = update.message.video.file_id
-            context.user_data["step"] = "link"
-           await update.message.reply_text("▶️ Treyler videosini yuboring (2–3 daqiqa):")
-            return
+if step == "trailer":
+    if not update.message.video:
+        await update.message.reply_text(
+            "❌ Iltimos, 2–3 daqiqalik video yuboring"
+        )
+        return
 
-        if step == "link":
-            code = context.user_data["code"]
-
-            movies[code] = {
-                "name": context.user_data["name"],
-                "rating": context.user_data["rating"],
-                "trailer": context.user_data["trailer"],
-                "link": text
-            }
-
+    context.user_data["trailer"] = update.message.video.file_id
+    context.user_data["step"] = "link"
+    await update.message.reply_text("🔗 To‘liq film linkini yuboring:")
+    return
             save_json(MOVIES_FILE, movies)
             context.user_data.clear()
             await update.message.reply_text("✅ Kino qo‘shildi")
@@ -246,6 +237,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
